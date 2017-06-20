@@ -2,6 +2,7 @@ package edu.technopolis.homework.messenger.messages;
 
 /**
  * Типы сообщений в системе
+ * Максимальное количество = 127
  */
 public enum Type {
     // Сообщения от клиента к серверу

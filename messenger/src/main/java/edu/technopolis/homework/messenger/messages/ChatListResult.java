@@ -1,24 +1,31 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-import java.util.ArrayList;
-import java.util.List;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.util.Objects;
+import java.util.Set;
 
 public class ChatListResult extends Message {
-    private List<Long> chats;
+    private Set<Long> chats;
 
-    public ChatListResult(List<Long> chats) {
-        super(0, Type.MSG_CHAT_LIST_RESULT);
+    public ChatListResult(Set<Long> chats) {
+        super(Type.MSG_CHAT_LIST_RESULT);
         this.chats = chats;
     }
 
-    public ChatListResult() {}
-
-    public List<Long> getChats() {
+    public Set<Long> getChats() {
         return chats;
+    }
+
+    @Override
+    public byte[] encode() {
+        byte[][] setBytes = new byte[chats.size()][];
+        int i = 0;
+        for (Long l : chats) {
+            setBytes[i++] = Utils.getBytes(l);
+        }
+        byte[] chatsBytes = Utils.concat(setBytes);
+        return Utils.concat(super.encode(), chatsBytes);
     }
 
     @Override
@@ -49,24 +56,5 @@ public class ChatListResult extends Message {
         }
         stringBuilder.append("}");
         return stringBuilder.toString();
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeInt(chats.size());
-        for (int i = 0; i < chats.size(); i++) {
-            objectOutput.writeLong(chats.get(i));
-        }
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        int n = objectInput.readInt();
-        chats = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            chats.add(objectInput.readLong());
-        }
     }
 }

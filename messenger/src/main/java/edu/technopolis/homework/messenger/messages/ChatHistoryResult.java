@@ -1,5 +1,10 @@
 package edu.technopolis.homework.messenger.messages;
 
+import edu.technopolis.homework.messenger.Utils;
+import edu.technopolis.homework.messenger.net.BitProtocol;
+import edu.technopolis.homework.messenger.net.Protocol;
+import edu.technopolis.homework.messenger.net.ProtocolException;
+
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
@@ -10,20 +15,32 @@ import java.util.Objects;
 
 public class ChatHistoryResult extends Message {
     private List<TextMessage> messages;
+    private Protocol protocol = new BitProtocol();
 
     public ChatHistoryResult(List<TextMessage> messages) {
-        super(0, Type.MSG_CHAT_HIST_RESULT);
+        super(Type.MSG_CHAT_HIST_RESULT);
         this.messages = messages;
     }
-
-    public ChatHistoryResult() {}
 
     public List<TextMessage> getList() {
         return messages;
     }
 
-    public void setList(List<TextMessage> messages) {
-        this.messages = messages;
+    @Override
+    public byte[] encode() {
+        byte[][] listBytes = new byte[messages.size()][];
+        int i = 0;
+        try {
+            for (TextMessage message : messages) {
+                listBytes[i] = protocol.encode(message);
+                listBytes[i] = Utils.concat(Utils.getBytes(listBytes[i].length), listBytes[i]);
+                i++;
+            }
+        } catch (ProtocolException e) {
+            e.printStackTrace();
+        }
+        byte[] messagesBytes = Utils.concat(listBytes);
+        return Utils.concat(super.encode(), Utils.getBytes(messages.size()), messagesBytes);
     }
 
     @Override
@@ -48,33 +65,12 @@ public class ChatHistoryResult extends Message {
         StringBuilder stringBuilder = new StringBuilder("ChatHistoryResult{");
         stringBuilder.append(super.toString());
         stringBuilder.append(", Messages{");
-        for (Message message : messages) {
-            stringBuilder.append(message.getId());
+        for (TextMessage message : messages) {
+            stringBuilder.append(message.getText().length() > 10 ? message.getText().substring(0, 10) : message.getText());
             stringBuilder.append(", ");
         }
         stringBuilder.delete(stringBuilder.length() - 2, stringBuilder.length());
         stringBuilder.append("}");
         return stringBuilder.toString();
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeInt(messages.size());
-        for (TextMessage tm : messages) {
-            tm.writeExternal(objectOutput);
-        }
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        int n = objectInput.readInt();
-        messages = new LinkedList<>();
-        for (int i = 0; i < n; i++) {
-            TextMessage textMessage = new TextMessage();
-            textMessage.readExternal(objectInput);
-            messages.add(textMessage);
-        }
     }
 }

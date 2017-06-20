@@ -11,7 +11,7 @@ public interface MessageStore {
     /**
      * получаем список ид пользователей заданного чата
      */
-    List<Long> getChatsByUserId(Long userId) throws SQLException;
+    Set<Long> getChatsByUserId(Long userId) throws SQLException;
 
     /**
      * получить информацию о чате

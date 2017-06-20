@@ -1,22 +1,18 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.util.Objects;
 
 public class StatusMessage extends Message {
-
     private boolean status;
     private String info;
 
     public StatusMessage(boolean status, String info) {
-        super(0, Type.MSG_STATUS);
+        super(Type.MSG_STATUS);
         this.status = status;
         this.info = info;
     }
-
-    public StatusMessage() {}
 
     public boolean getStatus() {
         return status;
@@ -26,12 +22,9 @@ public class StatusMessage extends Message {
         return info;
     }
 
-    public void setStatus(boolean status) {
-        this.status = status;
-    }
-
-    public void setInfo(String info) {
-        this.info = info;
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), Utils.getBytes(status), info.getBytes());
     }
 
     @Override
@@ -58,19 +51,5 @@ public class StatusMessage extends Message {
                 "status=" + status + ", " +
                 "info=" + info +
                 '}';
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeBoolean(status);
-        objectOutput.write(info.getBytes());
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        status = objectInput.readBoolean();
-        info = objectInput.readLine();
     }
 }

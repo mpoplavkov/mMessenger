@@ -1,34 +1,28 @@
 package edu.technopolis.homework.messenger.messages;
 
+import edu.technopolis.homework.messenger.User;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Objects;
 
 public class InfoResult extends Message{
-    private long userId;
-    private String login;
-    private String about;
+    private User user;
 
-    public InfoResult(long userId, String login, String about) {
-        super(0, Type.MSG_INFO_RESULT);
-        this.userId = userId;
-        this.login = login;
-        this.about = about;
+    public InfoResult(User user) {
+        super(Type.MSG_INFO_RESULT);
+        this.user = user;
     }
 
-    public InfoResult() {}
-
-    public String getLogin() {
-        return login;
+    public User getUser() {
+        return user;
     }
 
-    public String getAbout() {
-        return about;
-    }
-
-    public long getUserId() {
-        return userId;
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), user.encode());
     }
 
     @Override
@@ -40,36 +34,19 @@ public class InfoResult extends Message{
         if (!super.equals(other))
             return false;
         InfoResult result = (InfoResult) other;
-        return Objects.equals(login, result.login) && Objects.equals(about, result.about);
+        return Objects.equals(user, result.user);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), login, about);
+        return Objects.hash(super.hashCode(), user);
     }
 
     @Override
     public String toString() {
         return "InfoResult{" +
                 super.toString() + ", " +
-                "login=" + login + ", " +
-                "about=" + about + "}";
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeLong(userId);
-        objectOutput.writeBytes(login + " " + about);
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        userId = objectInput.readLong();
-        String s = objectInput.readLine();
-        int split = s.indexOf(' ');
-        login = s.substring(0, split);
-        about = s.substring(split + 1, s.length());
+                "user=" + user +
+                "}";
     }
 }

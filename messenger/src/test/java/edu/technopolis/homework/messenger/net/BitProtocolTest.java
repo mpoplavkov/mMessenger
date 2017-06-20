@@ -1,5 +1,6 @@
 package edu.technopolis.homework.messenger.net;
 
+import edu.technopolis.homework.messenger.User;
 import edu.technopolis.homework.messenger.messages.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -7,11 +8,10 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-public class SerializableProtocolTest {
-    Protocol protocol = new SerializableProtocol();
+public class BitProtocolTest {
+    Protocol protocol = new BitProtocol();
     Random random = new Random();
     long senderId;
-    ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
 
     @Before
     public void generateIds() {
@@ -58,11 +58,11 @@ public class SerializableProtocolTest {
 
     @Test
     public void testChatListResult() {
-        List<Long> list = new ArrayList<>(10);
+        Set<Long> set = new HashSet<>(10);
         for (int i = 0; i < 10; i++) {
-            list.add(random.nextLong());
+            set.add(random.nextLong());
         }
-        ChatListResult chatListResult = new ChatListResult(list);
+        ChatListResult chatListResult = new ChatListResult(set);
         assert assertSerialization(chatListResult);
     }
 
@@ -74,13 +74,14 @@ public class SerializableProtocolTest {
 
     @Test
     public void testInfoResult() {
-        InfoResult infoResult = new InfoResult(senderId, randomString(), randomString());
+        User user = new User(senderId, randomString(), randomString());
+        InfoResult infoResult = new InfoResult(user);
         assert assertSerialization(infoResult);
     }
 
     @Test
     public void testLoginMessage() {
-        LoginMessage loginMessage = new LoginMessage(senderId, randomString(), randomString());
+        LoginMessage loginMessage = new LoginMessage(randomString(), randomString());
         assert assertSerialization(loginMessage);
     }
 
@@ -93,8 +94,8 @@ public class SerializableProtocolTest {
     private boolean assertSerialization(Message message) {
         Message messageResult = null;
         try {
-            protocol.encode(message, byteBuffer);
-            messageResult = protocol.decode(byteBuffer);
+            byte[] bytes = protocol.encode(message);
+            messageResult = protocol.decode(bytes);
         } catch (ProtocolException e) {
             e.printStackTrace();
             assert false;

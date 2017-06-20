@@ -7,6 +7,7 @@ import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -20,8 +21,8 @@ public class MessageTable implements MessageStore {
     private static final String CREATE_CHAT_QUERY = "SELECT * FROM create_chat(?, ?)";
 
     @Override
-    public List<Long> getChatsByUserId(Long userId) throws SQLException {
-        List<Long> chats = new LinkedList<>();
+    public Set<Long> getChatsByUserId(Long userId) throws SQLException {
+        Set<Long> chats = new HashSet<>();
         PreparedStatement preparedStatement = StoreConnection.getConnection().prepareStatement(GET_CHATS_BY_USER_ID_QUERY);
         preparedStatement.setLong(1, userId);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -40,7 +41,6 @@ public class MessageTable implements MessageStore {
         ResultSet resultSet = preparedStatement.executeQuery();
         while (resultSet.next()) {
             messages.add(new TextMessage(
-                    resultSet.getLong("id"),
                     resultSet.getLong("sender_id"),
                     resultSet.getLong("chat_id"),
                     resultSet.getString("text")));
@@ -54,7 +54,11 @@ public class MessageTable implements MessageStore {
         preparedStatement.setLong(1, messageId);
         ResultSet resultSet = preparedStatement.executeQuery();
         if (resultSet.next()) {
-            TextMessage message = new TextMessage(resultSet.getLong("id"), resultSet.getLong("chat_id"), resultSet.getLong("sender_id"), resultSet.getString("text"));
+            TextMessage message = new TextMessage(
+                    resultSet.getLong("chat_id"),
+                    resultSet.getLong("sender_id"),
+                    resultSet.getString("text")
+            );
             return message;
         }
         return null;

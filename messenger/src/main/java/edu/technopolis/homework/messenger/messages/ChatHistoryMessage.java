@@ -1,16 +1,10 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-import java.util.HashSet;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.util.Objects;
-import java.util.Set;
 
-public class ChatHistoryMessage extends Message{
-
-    // список сообщений из указанного чата
-    // (только для залогиненных пользователей)
+public class ChatHistoryMessage extends ClientMessage{
     private long chatId;
 
     public ChatHistoryMessage(long senderId, long chatId) {
@@ -18,13 +12,13 @@ public class ChatHistoryMessage extends Message{
         this.chatId = chatId;
     }
 
-    public ChatHistoryMessage() {}
-
     public long getChatId() {
         return chatId;
     }
-    public void setChatId(long chatId) {
-        this.chatId = chatId;
+
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), Utils.getBytes(chatId));
     }
 
     @Override
@@ -38,17 +32,5 @@ public class ChatHistoryMessage extends Message{
                 super.toString() + ", " +
                 "chatId='" + chatId + '\'' +
                 '}';
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeLong(chatId);
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        chatId = objectInput.readLong();
     }
 }

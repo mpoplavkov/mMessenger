@@ -1,5 +1,7 @@
 package edu.technopolis.homework.messenger;
 
+import java.util.Objects;
+
 /**
  *
  */
@@ -26,20 +28,30 @@ public class User {
         return login;
     }
 
-    public void setLogin(String login) {
-        this.login = login;
-    }
-
     public String getAbout() {
         return about;
     }
 
-    public void setAbout(String about) {
-        this.about = about;
+    public byte[] encode() {
+        return Utils.concat(Utils.getBytes(id), (login + "\n" + about).getBytes());
     }
 
     @Override
     public String toString() {
-        return id == 0 ? "I'm not in DB" : id + ": " + login;
+        return "User{" +
+                "userId='" + id + "\', " +
+                "password='" + "\', " +
+                "about=" + (about.length() > 10 ? about.substring(0, 10) : about) +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other)
+            return true;
+        if (!(other instanceof User))
+            return false;
+        User user = (User) other;
+        return Objects.equals(id, user.id) && Objects.equals(login, user.login) && Objects.equals(about, user.about);
     }
 }

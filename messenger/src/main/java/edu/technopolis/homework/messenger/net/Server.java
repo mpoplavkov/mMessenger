@@ -19,7 +19,7 @@ public class Server {
     private static final int PORT = 10013;
     private static final int BUFFER_SIZE = 1024;
 
-    private Protocol protocol = new SerializableProtocol();
+    private Protocol protocol = new BitProtocol();
     private Map<SocketChannel, ByteBuffer> map = new HashMap<>();
 
     private UserStore userStore = new UserTable();
@@ -82,9 +82,15 @@ public class Server {
             if (read == -1) {
                 close(channel);
             } else {
-                Message message = protocol.decode(buffer);
+                byte[] bytes = new byte[buffer.position()];
+                buffer.flip();
+                for (int i = 0; i < bytes.length; i++) {
+                    bytes[i] = buffer.get();
+                }
+                Message message = protocol.decode(bytes);
                 Message newMessage = processMessage(message);
-                protocol.encode(newMessage, buffer);
+                buffer.clear();
+                buffer.put(protocol.encode(newMessage));
                 key.interestOps(SelectionKey.OP_WRITE);
             }
         } catch (Exception e) {
@@ -114,7 +120,7 @@ public class Server {
                 case MSG_INFO:
                     InfoMessage infoMessage = (InfoMessage) message;
                     user = userStore.getUserById(infoMessage.getUserId());
-                    return new InfoResult(user.getId(), user.getLogin(), user.getAbout());
+                    return new InfoResult(user);
                 case MSG_TEXT:
                     TextMessage textMessage = (TextMessage) message;
                     messageStore.addMessage(textMessage);

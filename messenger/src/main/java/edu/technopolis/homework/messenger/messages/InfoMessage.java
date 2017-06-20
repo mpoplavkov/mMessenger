@@ -1,15 +1,10 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.util.Objects;
 
-public class InfoMessage extends Message {
-
-    // получить всю информацию о пользователе,
-    // без аргументов - о себе
-    // (только для залогиненных пользователей)
+public class InfoMessage extends ClientMessage {
     private long userId;
 
     public InfoMessage(long senderId, long userId) {
@@ -21,14 +16,13 @@ public class InfoMessage extends Message {
         this(senderId, senderId);
     }
 
-    public InfoMessage() {}
-
     public long getUserId() {
         return userId;
     }
 
-    public void setUserId(long userId) {
-        this.userId = userId;
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), Utils.getBytes(userId));
     }
 
     @Override
@@ -54,17 +48,5 @@ public class InfoMessage extends Message {
                 super.toString() + ", " +
                 "userId='" + userId + '\'' +
                 '}';
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeLong(userId);
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        userId = objectInput.readLong();
     }
 }

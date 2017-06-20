@@ -1,30 +1,28 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-import java.util.HashSet;
+import edu.technopolis.homework.messenger.Utils;
+
 import java.util.Objects;
-import java.util.Set;
 
-public class LoginMessage extends Message {
-
-    // залогиниться (если логин не указан, то авторизоваться).
-    // В случае успеха приходит вся инфа о пользователе
+public class LoginMessage extends ClientMessage {
     private String login;
     private int password;
 
-    public LoginMessage(long senderId, String login, String password) {
+    private LoginMessage(long senderId, String login, String password) {
         super(senderId, Type.MSG_LOGIN);
         this.login = login;
-        //шифрования пароля будет тут
-        this.password = password.hashCode();
+        this.password = Utils.cipherPassword(password);
     }
+
     public LoginMessage(String login, String password) {
         this(0, login, password);
     }
 
-    public LoginMessage() {}
+    public LoginMessage(String login, int chipheredPassword) {
+        super(0, Type.MSG_LOGIN);
+        this.login = login;
+        this.password = chipheredPassword;
+    }
 
     public String getLogin() {
         return login;
@@ -34,8 +32,9 @@ public class LoginMessage extends Message {
         return password;
     }
 
-    public void setLogin(String login) {
-        this.login = login;
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), Utils.getBytes(password), login.getBytes());
     }
 
     @Override
@@ -62,19 +61,5 @@ public class LoginMessage extends Message {
                 "login=" + login + ", " +
                 "password='" + password + '\'' +
                 '}';
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeInt(password);
-        objectOutput.write(login.getBytes());
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        password = objectInput.readInt();
-        login = objectInput.readLine();
     }
 }

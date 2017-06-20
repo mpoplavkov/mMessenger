@@ -1,28 +1,31 @@
 package edu.technopolis.homework.messenger.messages;
 
+import edu.technopolis.homework.messenger.Utils;
+
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 import java.util.Objects;
 
-/**
- * Created by mihailpoplavkov on 19.06.17.
- */
-public class UserCreateMessage extends Message {
+public class UserCreateMessage extends ClientMessage {
     private String login;
     private int password;
 
-    public UserCreateMessage(long senderId, String login, String password) {
+    private UserCreateMessage(long senderId, String login, String password) {
         super(senderId, Type.MSG_USER_CREATE);
         this.login = login;
-        this.password = password.hashCode();
+        this.password = Utils.cipherPassword(password);
     }
 
     public UserCreateMessage(String login, String password) {
         this(0, login, password);
     }
 
-    public UserCreateMessage() {}
+    public UserCreateMessage(String login, int chipheredPassword) {
+        super(0, Type.MSG_USER_CREATE);
+        this.login = login;
+        this.password = chipheredPassword;
+    }
 
     public String getLogin() {
         return login;
@@ -30,6 +33,11 @@ public class UserCreateMessage extends Message {
 
     public int getPassword() {
         return password;
+    }
+
+    @Override
+    public byte[] encode() {
+        return Utils.concat(super.encode(), Utils.getBytes(password), login.getBytes());
     }
 
     @Override
@@ -51,20 +59,10 @@ public class UserCreateMessage extends Message {
 
     @Override
     public String toString() {
-        return "UserCreateMessage{" + super.toString() + ", login=" + login + ", password=" + password + "}";
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        super.writeExternal(objectOutput);
-        objectOutput.writeInt(password);
-        objectOutput.writeBytes(login);
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        super.readExternal(objectInput);
-        password = objectInput.readInt();
-        login = objectInput.readLine();
+        return "UserCreateMessage{" +
+                super.toString() +
+                ", login=" + login +
+                ", password=" + password +
+                "}";
     }
 }

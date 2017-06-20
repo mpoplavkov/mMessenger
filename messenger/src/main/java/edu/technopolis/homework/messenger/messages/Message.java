@@ -1,45 +1,22 @@
 package edu.technopolis.homework.messenger.messages;
 
-import java.io.*;
 import java.util.Objects;
 
-/**
- *
- * Вопрос: если использовать Externalizable и методы writeExternal() и readExternal(),
- * то java сама запишет при сериализации класс объекта? Иначе непонятно, как потом
- * работает механизм восстановления.
- * Поскольку с механизмом Externalizable есть вопросы, здесь пока что будет Serializable.
- *
- */
-public abstract class Message implements Externalizable {
-
-    private long id;
-    private long senderId;
+public abstract class Message {
     private Type type;
-    private static long idCounter = 0;
 
-    protected Message(long id, long senderId, Type type) {
-        this.id = id;
-        this.senderId = senderId;
+    protected Message(Type type) {
         this.type = type;
-    }
-
-    protected Message(long senderId, Type type) {
-        this(idCounter++, senderId, type);
-    }
-
-    public Message() {}
-
-    public long getId() {
-        return id;
-    }
-
-    public long getSenderId() {
-        return senderId;
     }
 
     public Type getType() {
         return type;
+    }
+
+    public byte[] encode() {
+        byte[] bytes = new byte[1];
+        bytes[0] = (byte)type.ordinal();
+        return bytes;
     }
 
     @Override
@@ -49,32 +26,16 @@ public abstract class Message implements Externalizable {
         if (!(other instanceof Message))
             return false;
         Message message = (Message) other;
-        return Objects.equals(id, message.id) && Objects.equals(senderId, message.senderId);
+        return Objects.equals(type, message.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), id, senderId);
+        return Objects.hash(super.hashCode(), type);
     }
 
     @Override
     public String toString() {
-        return "type = " + type + ", " +
-                "id='" + id + "', " +
-                "senderId='" + senderId + "'";
-    }
-
-    @Override
-    public void writeExternal(ObjectOutput objectOutput) throws IOException {
-        objectOutput.writeLong(id);
-        objectOutput.writeLong(senderId);
-        objectOutput.writeByte(type.ordinal());
-    }
-
-    @Override
-    public void readExternal(ObjectInput objectInput) throws IOException, ClassNotFoundException {
-        id = objectInput.readLong();
-        senderId = objectInput.readLong();
-        type = Type.values()[objectInput.readByte()];
+        return "type = " + type;
     }
 }
