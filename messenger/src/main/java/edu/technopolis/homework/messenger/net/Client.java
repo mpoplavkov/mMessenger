@@ -3,112 +3,69 @@ package edu.technopolis.homework.messenger.net;
 import edu.technopolis.homework.messenger.User;
 import edu.technopolis.homework.messenger.messages.*;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.SocketChannel;
+import java.io.*;
+import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.stream.Collectors;
 
 public class Client {
     private static final String HOST = "localhost";
     private static final int PORT = 10013;
-    private static final int BUFFER_SIZE = 1024;
 
-    Protocol protocol = new SerializableProtocol();
-    private BlockingQueue<Message> queue = new ArrayBlockingQueue<>(2);
+    private Protocol protocol = new BitProtocol();
     private User user;
 
     private void run() {
-        try (SocketChannel socketChannel = SocketChannel.open();
-             Selector selector = Selector.open()) {
-            socketChannel.configureBlocking(false);
-            socketChannel.connect(new InetSocketAddress(HOST, PORT));
-            socketChannel.register(selector, SelectionKey.OP_CONNECT);
-            ByteBuffer byteBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+        try (Socket socket = new Socket(HOST, PORT);
+             Scanner scanner = new Scanner(System.in)) {
+            OutputStream out = socket.getOutputStream();
+            InputStream in = socket.getInputStream();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+            //reading thread
+            new Thread(() -> {
+                while (true) {
+                    String line = scanner.nextLine(); // blocking
+                    Message message = processInput(line);
+                    if (message == null) {
+                        continue;
+                    }
+
+                    System.out.println("Client: sending " + message);
+                    try {
+                        out.write(protocol.encode(message));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+
+            //writing thread
             while (true) {
-                selector.select();
-                Set<SelectionKey> selectionKeys = selector.selectedKeys();
-                selectionKeys.removeIf(key -> {
-                    if (!key.isValid()) {
-                        return true;
+                if (in.available() > 0) {
+                    while (in.available() > 1) {
+                        baos.write(in.read());
                     }
-                    if (key.isConnectable()) {
-                        try {
-                            if (socketChannel.finishConnect()) {
-                                System.out.println("Client: connected");
-                            }
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                            System.exit(0);
-                        }
-                        // поток для чтения входной инфы
-                        new Thread(() -> {
-                            Scanner scanner = new Scanner(System.in);
-                            while (true) {
-                                String line = scanner.nextLine(); // blocking
-                                Message message = processInput(line);
-                                if (message != null) {
-                                    try {
-                                        queue.put(message);
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
-                                    }
-                                    key.interestOps(SelectionKey.OP_WRITE);
-                                    selector.wakeup();
-                                }
-                            }
-                        }).start();
-                    } else if (key.isReadable()) {
-                        byteBuffer.clear();
-                        try {
-                            socketChannel.read(byteBuffer);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        Message message = null;
-                        try {
-                            message = protocol.decode(byteBuffer);
-                        } catch (ProtocolException e) {
-                            //здесь надо обработать случаи, когда message передается не за один раз
-                            e.printStackTrace();
-                        }
-                        if (message != null) {
-                            onMessage(message);
-                        }
-                    } else if (key.isWritable()) {
-                        Message message = queue.poll();
-                        if (message != null) {
-                            System.out.println("Client: sending " + message);
-                            try {
-                                protocol.encode(message, byteBuffer);
-                                System.out.println("Sending " + byteBuffer.position() + " bytes");
-                                //перед тем как отправлять буфер, его надо перевести в режим чтения!!!
-                                byteBuffer.flip();
-                                socketChannel.write(byteBuffer);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                            key.interestOps(SelectionKey.OP_READ);
-                        }
+                    in.skip(1);
+                    Message message = protocol.decode(baos.toByteArray());
+                    baos.reset();
+
+                    if (message != null) {
+                        onMessage(message);
                     }
-                    return true;
-                });
+                }
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+
     }
 
     private void onMessage(Message message) {
         System.out.println("Received " + message.getType());
         switch (message.getType()) {
             case MSG_STATUS:
-                StatusMessage statusMessage = (StatusMessage)message;
+                StatusMessage statusMessage = (StatusMessage) message;
                 if (user == null && statusMessage.getStatus()) {
                     String[] tokens = statusMessage.getInfo().split(" ");
                     Map<String, String> map = Arrays.stream(tokens).collect(Collectors.toMap(
@@ -124,19 +81,20 @@ public class Client {
                 break;
             case MSG_INFO_RESULT:
                 InfoResult infoResult = (InfoResult) message;
-                System.out.println("---id       = " + infoResult.getUserId());
-                System.out.println("---login    = " + infoResult.getLogin());
-                System.out.println("---about    = " + infoResult.getAbout());
+                User user = infoResult.getUser();
+                System.out.println("---id       = " + user.getId());
+                System.out.println("---login    = " + user.getLogin());
+                System.out.println("---about    = " + user.getAbout());
                 break;
             case MSG_CHAT_HIST_RESULT:
-                ChatHistoryResult chatHistoryResult = (ChatHistoryResult)message;
+                ChatHistoryResult chatHistoryResult = (ChatHistoryResult) message;
                 System.out.println("---msgList  = ");
                 for (Message mes : chatHistoryResult.getList()) {
                     System.out.println("\t\t\t\t" + mes);
                 }
                 break;
             case MSG_CHAT_LIST_RESULT:
-                ChatListResult chatListResult = (ChatListResult)message;
+                ChatListResult chatListResult = (ChatListResult) message;
                 System.out.println("---chatList = " + chatListResult.getChats());
                 break;
             default:
@@ -149,6 +107,13 @@ public class Client {
      * @return null if message process on client or invalid input
      */
     private Message processInput(String line) {
+        byte[] bytes = line.getBytes();
+        for (byte b : bytes) {
+            if (b < 0) {
+                System.out.println("All bytes must be positive");
+                return null;
+            }
+        }
         String[] tokens = line.split(" ");
         String cmdType = tokens[0];
         switch (cmdType) {
@@ -173,7 +138,6 @@ public class Client {
                         "/chat_history <chat_id>                - получить список сообщений из указанного чата." +
                         "/user_create login password            - зарегистрировать нового пользователя.");
                 return null;
-
             case "/user_create":
                 if (tokens.length == 3) {
                     if (user != null) {
@@ -228,7 +192,7 @@ public class Client {
                     if (tokens.length == 2) {
                         Set<Long> users = parseLongList(tokens[1]);
                         if (users != null) {
-                            return new ChatCreateMessage(user.getId(), users.toString(), users);
+                            return new ChatCreateMessage(user.getId(), users);
                         }
                     } else if (tokens.length == 3) {
                         String name = tokens[1];

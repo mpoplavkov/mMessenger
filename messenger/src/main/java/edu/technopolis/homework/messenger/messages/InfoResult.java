@@ -46,7 +46,7 @@ public class InfoResult extends Message{
     public String toString() {
         return "InfoResult{" +
                 super.toString() + ", " +
-                "user=" + user +
+                "user=" + user == null ? "null" : user +
                 "}";
     }
 }

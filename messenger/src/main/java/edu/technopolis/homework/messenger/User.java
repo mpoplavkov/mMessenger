@@ -2,9 +2,6 @@ package edu.technopolis.homework.messenger;
 
 import java.util.Objects;
 
-/**
- *
- */
 public class User {
     private long id;
     private String login;
@@ -39,9 +36,9 @@ public class User {
     @Override
     public String toString() {
         return "User{" +
-                "userId='" + id + "\', " +
-                "password='" + "\', " +
-                "about=" + (about.length() > 10 ? about.substring(0, 10) : about) +
+                "id='" + id + "\', " +
+                "login=" + login + ", " +
+                "about=" + (about == null ? "null" : (about.length() > 10 ? about.substring(0, 10) : about)) +
                 '}';
     }
 

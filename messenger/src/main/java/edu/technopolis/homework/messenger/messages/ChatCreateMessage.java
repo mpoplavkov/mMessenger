@@ -16,7 +16,9 @@ public class ChatCreateMessage extends ClientMessage {
     }
 
     public ChatCreateMessage(long senderId, Set<Long> listOfInvited) {
-        this(senderId, listOfInvited.toString(), listOfInvited);
+        this(senderId,
+                listOfInvited.toString().length() > 50 ? listOfInvited.toString().substring(0, 50) : listOfInvited.toString(),
+                listOfInvited);
     }
 
     public Set<Long> getListOfInvited() {

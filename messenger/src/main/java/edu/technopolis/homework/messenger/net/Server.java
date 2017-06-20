@@ -4,6 +4,7 @@ import edu.technopolis.homework.messenger.User;
 import edu.technopolis.homework.messenger.messages.*;
 import edu.technopolis.homework.messenger.store.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -20,7 +21,9 @@ public class Server {
     private static final int BUFFER_SIZE = 1024;
 
     private Protocol protocol = new BitProtocol();
-    private Map<SocketChannel, ByteBuffer> map = new HashMap<>();
+    private Map<SocketChannel, ByteBuffer> readBuffers = new HashMap<>();
+    private Map<SocketChannel, ByteBuffer> writeBuffers = new HashMap<>();
+    private Map<SocketChannel, ByteArrayOutputStream> byteArrays = new HashMap<>();
 
     private UserStore userStore = new UserTable();
     private MessageStore messageStore = new MessageTable();
@@ -47,7 +50,9 @@ public class Server {
                     }
                     return true;
                 });
-                map.keySet().removeIf(sc -> !sc.isOpen());
+                readBuffers.keySet().removeIf(sc -> !sc.isOpen());
+                writeBuffers.keySet().removeIf(sc -> !sc.isOpen());
+                byteArrays.keySet().removeIf(sc -> !sc.isOpen());
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -66,8 +71,9 @@ public class Server {
         try {
             SocketChannel accept = channel.accept(); //non-blocking
             accept.configureBlocking(false);
-            //в чем разница между allocate() и allocateDirect()???
-            map.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
+            readBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
+            writeBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
+            byteArrays.put(accept, new ByteArrayOutputStream());
             accept.register(key.selector(), SelectionKey.OP_READ);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -77,21 +83,58 @@ public class Server {
     private void read(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
         try {
-            ByteBuffer buffer = map.get(channel);
-            int read = channel.read(buffer);
+            ByteBuffer readBuffer = readBuffers.get(channel);
+            int read = channel.read(readBuffer);
+            System.out.println("received " + read + " bytes");
             if (read == -1) {
                 close(channel);
             } else {
-                byte[] bytes = new byte[buffer.position()];
-                buffer.flip();
-                for (int i = 0; i < bytes.length; i++) {
-                    bytes[i] = buffer.get();
+                ByteArrayOutputStream baos = byteArrays.get(channel);
+                readBuffer.flip();
+                boolean endOfMessage = false;
+                while (readBuffer.remaining() > 0) {
+                    byte b = readBuffer.get();
+                    if (b == BitProtocol.TERMINAL) {
+                        if (readBuffer.remaining() == 0) {
+                            //На данном этапе может быть ошибка в случае, если данный символ не является
+                            //терминальным, а всего лишь один из двух, идущих подряд (экранированный символ).
+                            //Это может произойти, если на данной итерации в байтбуфер будет считано
+                            //определенно количество байт.
+                            //Именно поэтому декодирование сообщения будет производиться в блоке try. Если
+                            //вылетит ошибка - значит сообщение пришло не полностью
+                            endOfMessage = true;
+                            break;
+                        } else {
+                            readBuffer.mark();
+                            if (readBuffer.get() == BitProtocol.TERMINAL) {
+                                baos.write(BitProtocol.TERMINAL);
+                                baos.write(BitProtocol.TERMINAL);
+                                continue;
+                            } else {
+                                endOfMessage = true;
+                                readBuffer.reset();
+                                break;
+                            }
+                        }
+                    }
+                    baos.write(b);
                 }
-                Message message = protocol.decode(bytes);
-                Message newMessage = processMessage(message);
-                buffer.clear();
-                buffer.put(protocol.encode(newMessage));
-                key.interestOps(SelectionKey.OP_WRITE);
+                readBuffer.compact();
+
+                if (endOfMessage) {
+                    try {
+                        Message message = protocol.decode(baos.toByteArray());
+                        baos.reset();
+                        Message newMessage = processMessage(message);
+                        ByteBuffer writeBuffer = writeBuffers.get(channel);
+                        writeBuffer.clear();
+                        writeBuffer.put(protocol.encode(newMessage));
+                        key.interestOps(SelectionKey.OP_WRITE);
+                        System.out.println("sending " + newMessage);
+                    } catch (ProtocolException e) {
+                        System.out.println("received broken message");
+                    }
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -100,7 +143,7 @@ public class Server {
 
     private void write(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
-        ByteBuffer buffer = map.get(channel);
+        ByteBuffer buffer = writeBuffers.get(channel);
         try {
             //перед тем как отправлять буфер, его надо перевести в режим чтения!!!
             buffer.flip();

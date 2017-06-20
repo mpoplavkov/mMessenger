@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 public class BitProtocol implements Protocol {
-    public static final byte TERMINAL = '\\';
+    public static final byte TERMINAL = -10;
 
     @Override
     public Message decode(byte[] bytes) throws ProtocolException {
@@ -70,6 +70,8 @@ public class BitProtocol implements Protocol {
                     text = ejectFullString(Arrays.copyOfRange(bytes, pos, bytes.length));
                     return new ChatCreateMessage(senderId, text, invited);
                 case MSG_USER_CREATE:
+                    senderId = ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES));
+                    pos += Long.BYTES;
                     password = ejectInt(Arrays.copyOfRange(bytes, pos, pos + Integer.BYTES));
                     pos += Integer.BYTES;
                     text = ejectFullString(Arrays.copyOfRange(bytes, pos, bytes.length));
@@ -121,7 +123,10 @@ public class BitProtocol implements Protocol {
         return ByteBuffer.wrap(bytes).getInt();
     }
 
-    private String ejectFullString(byte[] bytes) {
+    private String ejectFullString(byte[] bytes) throws ProtocolException {
+        if (bytes.length == 0) {
+            throw new ProtocolException("Too little input");
+        }
         return new String(bytes);
     }
 
@@ -139,6 +144,9 @@ public class BitProtocol implements Protocol {
                 i++;
             }
         }
-        return bytes;
+        byte[] newBytes = new byte[bytes.length + 1];
+        System.arraycopy(bytes, 0, newBytes, 0, bytes.length);
+        newBytes[bytes.length] = TERMINAL;
+        return newBytes;
     }
 }
