@@ -2,19 +2,26 @@ package edu.technopolis.homework.messenger.store;
 
 import edu.technopolis.homework.messenger.User;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class UserTable implements UserStore {
+    private Connection connection;
+    
     private static final String GET_USER_QUERY = "SELECT id, login, about FROM users WHERE login = ? AND password = ?";
     private static final String GET_USER_BY_ID_QUERY = "SELECT id, login, about FROM users WHERE id = ?";
     private static final String ADD_USER_QUERY = "INSERT INTO users (login, password) VALUES (?, ?) RETURNING *";
     private static final String UPDATE_USER_QUERY = "UPDATE users SET (login, password) = (?, ?) WHERE id = ? RETURNING *";
 
+    public UserTable(Connection connection) {
+        this.connection = connection;
+    }
+
     @Override
     public User addUser(String login, int password) throws SQLException {
-        PreparedStatement preparedStatement = StoreConnection.getConnection().prepareStatement(ADD_USER_QUERY);
+        PreparedStatement preparedStatement = connection.prepareStatement(ADD_USER_QUERY);
         preparedStatement.setString(1, login);
         preparedStatement.setInt(2, password);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -24,7 +31,7 @@ public class UserTable implements UserStore {
     @Override
     public User updateUser(User user) throws SQLException {
         if (user.getId() == 0) throw new IllegalArgumentException("User must has id");
-        PreparedStatement preparedStatement = StoreConnection.getConnection().prepareStatement(UPDATE_USER_QUERY);
+        PreparedStatement preparedStatement = connection.prepareStatement(UPDATE_USER_QUERY);
         preparedStatement.setString(1, user.getLogin());
         //preparedStatement.setInt(2, user.getPassword());
         preparedStatement.setLong(3, user.getId());
@@ -34,7 +41,7 @@ public class UserTable implements UserStore {
 
     @Override
     public User getUser(String login, int pass) throws SQLException {
-        PreparedStatement preparedStatement = StoreConnection.getConnection().prepareStatement(GET_USER_QUERY);
+        PreparedStatement preparedStatement = connection.prepareStatement(GET_USER_QUERY);
         preparedStatement.setString(1, login);
         preparedStatement.setInt(2, pass);
         ResultSet resultSet = preparedStatement.executeQuery();
@@ -43,7 +50,7 @@ public class UserTable implements UserStore {
 
     @Override
     public User getUserById(Long id) throws SQLException {
-        PreparedStatement preparedStatement = StoreConnection.getConnection().prepareStatement(GET_USER_BY_ID_QUERY);
+        PreparedStatement preparedStatement = connection.prepareStatement(GET_USER_BY_ID_QUERY);
         preparedStatement.setLong(1, id);
         ResultSet resultSet = preparedStatement.executeQuery();
         return ejectUser(resultSet);
