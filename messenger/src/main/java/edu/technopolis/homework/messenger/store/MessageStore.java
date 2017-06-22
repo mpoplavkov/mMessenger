@@ -52,4 +52,6 @@ public interface MessageStore {
      * Получить последнее сообщение из чата
      */
     TextMessage getLastMessageFromChat(Long chatId) throws SQLException;
+
+    TextMessage deleteMessageById(Long id) throws SQLException;
 }

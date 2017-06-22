@@ -256,8 +256,6 @@ public class Server {
                     TextMessage textMessage = (TextMessage) message;
                     messageStore.addMessage(textMessage);
 
-                    //TODO: new Thread push
-                    //process new mess(senderId, chatId)//
                     pool.execute(() -> push(textMessage.getSenderId(), textMessage.getChatId()));
 
                     info = "Sent message to chat " + textMessage.getChatId() + ": " +
@@ -292,6 +290,11 @@ public class Server {
                 case MSG_CHAT_LIST:
                     ChatListMessage chatListMessage = (ChatListMessage) message;
                     return new ChatListResult(messageStore.getChatsByUserId(chatListMessage.getSenderId()));
+                case MSG_DELETE_TEXT:
+                    DeleteTextMessage deleteTextMessage = (DeleteTextMessage) message;
+                    textMessage = messageStore.deleteMessageById(deleteTextMessage.getId());
+                    info = "Delete message \'" + textMessage.getText() + "\'";
+                    return new StatusMessage(true, info);
                 default:
                     System.out.println("Oh no! It's very bad. I should not have received this message: " + message);
                     System.exit(0);

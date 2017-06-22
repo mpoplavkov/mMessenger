@@ -220,6 +220,19 @@ public class Client {
                     System.out.println("You're not logged in");
                 }
                 break;
+            case "/delete_text":
+                if (user != null) {
+                    if (tokens.length == 2) {
+                        Long id = parseLong(tokens[1]);
+                        if (id > 0) {
+                            return new DeleteTextMessage(user.getId(), id);
+                        }
+                    }
+                    System.out.println("Incorrect operands.");
+                } else {
+                    System.out.println("You're not logged in");
+                }
+                break;
             default:
                 System.out.println("Incorrect command.");
         }

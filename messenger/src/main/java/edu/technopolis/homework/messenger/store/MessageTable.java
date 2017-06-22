@@ -19,6 +19,7 @@ public class MessageTable implements MessageStore {
     private static final String CREATE_CHAT_QUERY = "SELECT * FROM create_chat(?, ?)";
     private static final String GET_USERS_FROM_CHAT_QUERY = "SELECT user_id FROM users_chats WHERE chat_id = ?";
     private static final String GET_LAST_MESSAGE_FROM_CHAT_QUERY = "SELECT * FROM messages WHERE chat_id = ? ORDER BY time DESC LIMIT 1";
+    private static final String DELETE_MESSAGE_BY_ID = "DELETE FROM messages WHERE id = ? RETURNING *";
 
     public MessageTable(Connection connection) {
         this.connection = connection;
@@ -130,5 +131,24 @@ public class MessageTable implements MessageStore {
             return message;
         }
         return null;
+    }
+
+    @Override
+    public TextMessage deleteMessageById(Long id) throws SQLException {
+        PreparedStatement preparedStatement = connection.prepareStatement(DELETE_MESSAGE_BY_ID);
+        preparedStatement.setLong(1, id);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet.next()) {
+            TextMessage message = new TextMessage(
+                    resultSet.getLong("sender_id"),
+                    resultSet.getLong("chat_id"),
+                    resultSet.getString("text"),
+                    resultSet.getDate("time"),
+                    resultSet.getTime("time")
+            );
+            return message;
+        } else {
+            throw new SQLException("Message with id " + id + " not in DB");
+        }
     }
 }

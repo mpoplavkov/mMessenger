@@ -111,6 +111,12 @@ public class BitProtocol implements Protocol {
                         chats.add(chatId);
                     }
                     return new ChatListResult(chats);
+                case MSG_DELETE_TEXT:
+                    senderId = ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES));
+                    pos += Long.BYTES;
+                    long id = ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES));
+                    return new DeleteTextMessage(senderId, id);
+
             }
         } catch (Exception e) {
             throw new ProtocolException(e);
