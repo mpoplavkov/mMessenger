@@ -17,6 +17,8 @@ public class MessageTable implements MessageStore {
     private static final String ADD_MESSAGE_QUERY = "INSERT INTO messages (chat_id, sender_id, text, time) VALUES(?, ?, ?, current_timestamp)";
     private static final String ADD_USER_TO_CHAT_QUERY = "INSERT INTO users_chats (chat_id, user_id) VALUES(?, ?)";
     private static final String CREATE_CHAT_QUERY = "SELECT * FROM create_chat(?, ?)";
+    private static final String GET_USERS_FROM_CHAT_QUERY = "SELECT user_id FROM users_chats WHERE chat_id = ?";
+    private static final String GET_LAST_MESSAGE_FROM_CHAT_QUERY = "SELECT * FROM messages WHERE chat_id = ? ORDER BY time DESC LIMIT 1";
 
     public MessageTable(Connection connection) {
         this.connection = connection;
@@ -98,5 +100,35 @@ public class MessageTable implements MessageStore {
             return resultSet.getLong("create_chat");
         }
         return 0;
+    }
+
+    @Override
+    public Set<Long> getUsersFromChat(Long chatId) throws SQLException {
+        Set<Long> users = new HashSet<>();
+        PreparedStatement preparedStatement = connection.prepareStatement(GET_USERS_FROM_CHAT_QUERY);
+        preparedStatement.setLong(1, chatId);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        while (resultSet.next()) {
+            users.add(resultSet.getLong("user_id"));
+        }
+        return users;
+    }
+
+    @Override
+    public TextMessage getLastMessageFromChat(Long chatId) throws SQLException {
+        PreparedStatement preparedStatement = connection.prepareStatement(GET_LAST_MESSAGE_FROM_CHAT_QUERY);
+        preparedStatement.setLong(1, chatId);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        if (resultSet.next()) {
+            TextMessage message = new TextMessage(
+                    resultSet.getLong("sender_id"),
+                    resultSet.getLong("chat_id"),
+                    resultSet.getString("text"),
+                    resultSet.getDate("time"),
+                    resultSet.getTime("time")
+            );
+            return message;
+        }
+        return null;
     }
 }

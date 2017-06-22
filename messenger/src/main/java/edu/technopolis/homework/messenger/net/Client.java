@@ -31,9 +31,9 @@ public class Client {
                         continue;
                     }
 
-                    System.out.println("Client: sending " + message);
+                    System.out.println("\nClient: sending " + message + "\n");
                     try {
-                        System.out.println(protocol.encode(message).length);
+                        //System.out.println(protocol.encode(message).length);
                         out.write(protocol.encode(message));
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -47,7 +47,6 @@ public class Client {
                     while (in.available() > 1) {
                         baos.write(in.read());
                     }
-                    System.out.println("tadam");
                     in.skip(1);
                     Message message = protocol.decode(baos.toByteArray());
                     baos.reset();

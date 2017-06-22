@@ -21,7 +21,7 @@ public class TextMessage extends ClientMessage {
     }
 
     public TextMessage(long senderId, long chatId, String text) {
-        this(senderId, chatId, text, null, null);
+        this(senderId, chatId, text, new Date(0), new Time(0));
     }
 
     public String getText() {
@@ -72,8 +72,8 @@ public class TextMessage extends ClientMessage {
         return "TextMessage{" +
                 super.toString() + ", " +
                 "chatId='" + chatId + "\', " +
-                "text='" + text + "\', " +
-                "datetime=" + time + " " + date +
+                "datetime=" + time + " " + date + ", " +
+                "text='" + text + "\'" +
                 '}';
     }
 }

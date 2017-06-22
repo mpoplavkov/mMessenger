@@ -43,4 +43,13 @@ public interface MessageStore {
      */
     long createChat(String name, Set<Long> users) throws SQLException;
 
+    /**
+     * Получить список пользователей в чате
+     */
+    Set<Long> getUsersFromChat(Long chatId) throws SQLException;
+
+    /**
+     * Получить последнее сообщение из чата
+     */
+    TextMessage getLastMessageFromChat(Long chatId) throws SQLException;
 }

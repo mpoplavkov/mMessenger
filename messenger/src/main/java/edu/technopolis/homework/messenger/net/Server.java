@@ -17,6 +17,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class Server {
     private static final int PORT = 10013;
@@ -24,13 +26,8 @@ public class Server {
     private static final int N_THREADS = 5;
 
     private Protocol protocol = new BitProtocol();
-    private Map<SocketChannel, ByteBuffer> readBuffers = new HashMap<>();
-    private Map<SocketChannel, ByteBuffer> writeBuffers = new HashMap<>();
-    private Map<SocketChannel, ByteArrayOutputStream> readByteArrays = new HashMap<>();
-    private Map<SocketChannel, Queue<Byte>> writeQueues = new HashMap<>();
-
-    //private UserStore userStore = new UserTable();
-    //private MessageStore messageStore = new MessageTable();
+    private Map<SelectionKey, ClientHelper> map = new HashMap<>();
+    private Map<Long, SelectionKey> helpMap = new HashMap<>();
 
     private Executor pool = Executors.newFixedThreadPool(N_THREADS);
     private BlockingQueue<Connection> connectionsQueue = new ArrayBlockingQueue<>(N_THREADS);
@@ -74,18 +71,16 @@ public class Server {
                             e.printStackTrace();
                         }
                     } else if (key.isReadable()) {
-                        if ((boolean) key.attachment()) {
-                            pool.execute(() -> {
-                                read(key);
-                            });
-                            key.attach(false);
+                        if (map.get(key) != null) {
+                            if (map.get(key).readSemaphore.tryAcquire()) {
+                                pool.execute(() -> read(key));
+                            }
                         }
                     } else if (key.isWritable()) {
-                        if ((boolean) key.attachment()) {
-                            pool.execute(() -> {
-                                write(key);
-                            });
-                            key.attach(false);
+                        if (map.get(key) != null) {
+                            if (map.get(key).writeSemaphore.tryAcquire()) {
+                                pool.execute(() -> write(key));
+                            }
                         }
                     }
                     return true;
@@ -106,11 +101,8 @@ public class Server {
     private void accept(SelectionKey key, SocketChannel accept) {
         try {
             accept.configureBlocking(false);
-            readBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
-            writeBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
-            readByteArrays.put(accept, new ByteArrayOutputStream());
-            writeQueues.put(accept, new LinkedBlockingQueue<>());
-            accept.register(key.selector(), SelectionKey.OP_READ, true);
+            SelectionKey selectionKey = accept.register(key.selector(), SelectionKey.OP_READ);
+            map.put(selectionKey, new ClientHelper());
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -118,18 +110,17 @@ public class Server {
 
     private void read(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
+        ClientHelper clientHelper = map.get(key);
         try {
-            ByteBuffer readBuffer = readBuffers.get(channel);
+            ByteBuffer readBuffer = clientHelper.readBuffer;
             int read = channel.read(readBuffer);
             //System.out.println("received " + read + " bytes");
             if (read == -1) {
                 close(channel);
-                readBuffers.remove(channel);
-                writeBuffers.remove(channel);
-                readByteArrays.remove(channel);
-                writeQueues.remove(channel);
+                helpMap.remove(clientHelper.id);
+                map.remove(key);
             } else {
-                ByteArrayOutputStream baos = readByteArrays.get(channel);
+                ByteArrayOutputStream baos = clientHelper.readStream;
                 readBuffer.flip();
                 boolean endOfMessage = false;
                 while (readBuffer.remaining() > 0) {
@@ -165,12 +156,13 @@ public class Server {
                     try {
                         Message message = protocol.decode(baos.toByteArray());
                         baos.reset();
-                        Message newMessage = processMessage(message);
+                        Message newMessage = processMessage(message, key);
                         byte[] bytes = protocol.encode(newMessage);
                         Byte[] bigBytes = new Byte[bytes.length];
                         Arrays.setAll(bigBytes, i -> bytes[i]);
-                        writeQueues.get(channel).addAll(Arrays.asList(bigBytes));
+                        clientHelper.writeQueue.addAll(Arrays.asList(bigBytes));
                         key.interestOps(SelectionKey.OP_WRITE);
+                        clientHelper.writing = true;
                         System.out.println("sending " + newMessage);
                     } catch (ProtocolException e) {
                         System.out.println("received broken message");
@@ -180,18 +172,29 @@ public class Server {
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            key.attach(true);
+            clientHelper.readSemaphore.release();
         }
     }
 
     private void write(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
-        Queue<Byte> queue = writeQueues.get(channel);
-        ByteBuffer buffer = writeBuffers.get(channel);
+        ClientHelper clientHelper = map.get(key);
+        Queue<Byte> queue;
+        if (!clientHelper.writeQueue.isEmpty()) {
+            queue = clientHelper.writeQueue;
+            clientHelper.writing = false;
+        } else if(!clientHelper.pushQueue.isEmpty()){
+            queue = clientHelper.pushQueue;
+            clientHelper.pushing = false;
+        } else {
+            key.interestOps(SelectionKey.OP_READ);
+            return;
+        }
+        ByteBuffer buffer = clientHelper.writeBuffer;
         try {
-            while (queue.size() > 0) {
+            while (!queue.isEmpty()) {
                 buffer.clear();
-                while (queue.size() > 0 && buffer.capacity() - buffer.position() > 0) {
+                while (!queue.isEmpty() && buffer.capacity() - buffer.position() > 0) {
                     buffer.put(queue.poll());
                 }
                 buffer.flip();
@@ -199,15 +202,44 @@ public class Server {
                     channel.write(buffer);
                 }
             }
-            key.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            key.attach(true);
+            if (!(clientHelper.writing || clientHelper.pushing)) {
+                key.interestOps(SelectionKey.OP_READ);
+            }
+            clientHelper.writeSemaphore.release();
         }
     }
 
-    private Message processMessage(Message message) {
+    private void push(long senderId, long chatId) {
+        try {
+            Connection connection = connectionsQueue.take();
+            MessageStore messageStore = new MessageTable(connection);
+            Set<Long> set = messageStore.getUsersFromChat(chatId);
+            set.remove(senderId);
+            TextMessage textMessage = messageStore.getLastMessageFromChat(chatId);
+            String info = "PUSH! Received message:\n" + textMessage;
+            StatusMessage statusMessage = new StatusMessage(true, info);
+            byte[] bytes = statusMessage.encode();
+            Byte[] bigBytes = new Byte[bytes.length];
+            Arrays.setAll(bigBytes, i -> bytes[i]);
+            for (Long userId : set) {
+                SelectionKey key = helpMap.get(userId);
+                ClientHelper clientHelper = map.get(key);
+                clientHelper.pushQueue.addAll(Arrays.asList(bigBytes));
+                clientHelper.pushing = true;
+                key.interestOps(SelectionKey.OP_WRITE);
+                /*if (key.isReadable()) {
+                    key.interestOps(SelectionKey.OP_READ & SelectionKey.OP_WRITE);
+                }*/
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Message processMessage(Message message, SelectionKey key) {
         User user;
         String info;
         Connection connection = null;
@@ -224,6 +256,10 @@ public class Server {
                     TextMessage textMessage = (TextMessage) message;
                     messageStore.addMessage(textMessage);
 
+                    //TODO: new Thread push
+                    //process new mess(senderId, chatId)//
+                    pool.execute(() -> push(textMessage.getSenderId(), textMessage.getChatId()));
+
                     info = "Sent message to chat " + textMessage.getChatId() + ": " +
                             (textMessage.getText().length() > 20 ?
                                     (textMessage.getText().substring(0, 20) + "...")
@@ -232,6 +268,8 @@ public class Server {
                 case MSG_LOGIN:
                     LoginMessage loginMessage = (LoginMessage) message;
                     user = userStore.getUser(loginMessage.getLogin(), loginMessage.getPassword());
+                    map.get(key).id = user.getId();
+                    helpMap.put(user.getId(), key);
                     info = "id=" + user.getId() + " login=" + user.getLogin();
                     return new StatusMessage(true, info);
                 case MSG_USER_CREATE:
@@ -280,5 +318,18 @@ public class Server {
 
     public static void main(String[] args) {
         new Server().run();
+    }
+
+    private static class ClientHelper {
+        private long id;
+        private ByteBuffer readBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+        private ByteBuffer writeBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+        private ByteArrayOutputStream readStream = new ByteArrayOutputStream();
+        private Queue<Byte> writeQueue = new LinkedBlockingQueue<>();
+        private Queue<Byte> pushQueue = new LinkedBlockingQueue<>();
+        private Semaphore readSemaphore = new Semaphore(1);
+        private Semaphore writeSemaphore = new Semaphore(1);
+        private boolean writing;
+        private boolean pushing;
     }
 }
