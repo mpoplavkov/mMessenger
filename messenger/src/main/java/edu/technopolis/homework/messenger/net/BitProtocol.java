@@ -4,6 +4,8 @@ import edu.technopolis.homework.messenger.User;
 import edu.technopolis.homework.messenger.messages.*;
 
 import java.nio.ByteBuffer;
+import java.sql.Date;
+import java.sql.Time;
 import java.util.*;
 
 public class BitProtocol implements Protocol {
@@ -46,11 +48,12 @@ public class BitProtocol implements Protocol {
                     pos += Long.BYTES;
                     chatId = ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES));
                     pos += Long.BYTES;
-                    if (bytes.length - pos == 1) {
-                        System.out.println();
-                    }
+                    Date date = new Date(ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES)));
+                    pos += Long.BYTES;
+                    Time time = new Time(ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES)));
+                    pos += Long.BYTES;
                     text = ejectFullString(Arrays.copyOfRange(bytes, pos, bytes.length));
-                    return new TextMessage(senderId, chatId, text);
+                    return new TextMessage(senderId, chatId, text, date, time);
                 case MSG_INFO:
                     senderId = ejectLong(Arrays.copyOfRange(bytes, pos, pos + Long.BYTES));
                     pos += Long.BYTES;

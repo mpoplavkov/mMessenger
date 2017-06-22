@@ -1,6 +1,5 @@
 package edu.technopolis.homework.messenger.store;
 
-import edu.technopolis.homework.messenger.messages.Message;
 import edu.technopolis.homework.messenger.messages.TextMessage;
 
 import java.sql.*;
@@ -11,10 +10,10 @@ import java.util.Set;
 
 public class MessageTable implements MessageStore {
     private Connection connection;
-    
+
     private static final String GET_CHATS_BY_USER_ID_QUERY = "SELECT chat_id FROM users_chats WHERE user_id = ?";
     private static final String GET_MESSAGES_FROM_CHAT_QUERY = "SELECT * FROM get_chat_history(?, ?)";
-    private static final String GET_MESSAGE_BY_ID_QUERY = "SELECT id, chat_id, sender_id, text FROM messages WHERE id = ?";
+    private static final String GET_MESSAGE_BY_ID_QUERY = "SELECT chat_id, sender_id, text, time FROM messages WHERE id = ?";
     private static final String ADD_MESSAGE_QUERY = "INSERT INTO messages (chat_id, sender_id, text, time) VALUES(?, ?, ?, current_timestamp)";
     private static final String ADD_USER_TO_CHAT_QUERY = "INSERT INTO users_chats (chat_id, user_id) VALUES(?, ?)";
     private static final String CREATE_CHAT_QUERY = "SELECT * FROM create_chat(?, ?)";
@@ -46,7 +45,9 @@ public class MessageTable implements MessageStore {
             messages.add(new TextMessage(
                     resultSet.getLong("sender_id"),
                     resultSet.getLong("chat_id"),
-                    resultSet.getString("text")));
+                    resultSet.getString("text"),
+                    resultSet.getDate("time"),
+                    resultSet.getTime("time")));
         }
         return messages;
     }
@@ -58,9 +59,11 @@ public class MessageTable implements MessageStore {
         ResultSet resultSet = preparedStatement.executeQuery();
         if (resultSet.next()) {
             TextMessage message = new TextMessage(
-                    resultSet.getLong("chat_id"),
                     resultSet.getLong("sender_id"),
-                    resultSet.getString("text")
+                    resultSet.getLong("chat_id"),
+                    resultSet.getString("text"),
+                    resultSet.getDate("time"),
+                    resultSet.getTime("time")
             );
             return message;
         }

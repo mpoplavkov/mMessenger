@@ -2,16 +2,26 @@ package edu.technopolis.homework.messenger.messages;
 
 import edu.technopolis.homework.messenger.Utils;
 
+import java.sql.Date;
+import java.sql.Time;
 import java.util.Objects;
 
 public class TextMessage extends ClientMessage {
     private long chatId;
     private String text;
+    private Time time;
+    private Date date;
 
-    public TextMessage(long senderId, long chatId, String text) {
+    public TextMessage(long senderId, long chatId, String text, Date date, Time time) {
         super(senderId, Type.MSG_TEXT);
         this.chatId = chatId;
         this.text = text;
+        this.date = date;
+        this.time = time;
+    }
+
+    public TextMessage(long senderId, long chatId, String text) {
+        this(senderId, chatId, text, null, null);
     }
 
     public String getText() {
@@ -22,9 +32,22 @@ public class TextMessage extends ClientMessage {
         return chatId;
     }
 
+    public Time getTime() {
+        return time;
+    }
+
+    public Date getDate() {
+        return date;
+    }
+
     @Override
     public byte[] encode() {
-        return Utils.concat(super.encode(), Utils.getBytes(chatId), text.getBytes());
+        return Utils.concat(
+                super.encode(),
+                Utils.getBytes(chatId),
+                Utils.getBytes(date.getTime()),
+                Utils.getBytes(time.getTime()),
+                text.getBytes());
     }
 
     @Override
@@ -49,7 +72,8 @@ public class TextMessage extends ClientMessage {
         return "TextMessage{" +
                 super.toString() + ", " +
                 "chatId='" + chatId + "\', " +
-                "text='" + text + '\'' +
+                "text='" + text + "\', " +
+                "datetime=" + time + " " + date +
                 '}';
     }
 }
