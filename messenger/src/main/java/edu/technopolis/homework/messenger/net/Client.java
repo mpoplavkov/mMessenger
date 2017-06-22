@@ -22,7 +22,7 @@ public class Client {
             InputStream in = socket.getInputStream();
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-            //reading thread
+            //writing thread
             new Thread(() -> {
                 while (true) {
                     String line = scanner.nextLine(); // blocking
@@ -33,6 +33,7 @@ public class Client {
 
                     System.out.println("Client: sending " + message);
                     try {
+                        System.out.println(protocol.encode(message).length);
                         out.write(protocol.encode(message));
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -40,12 +41,13 @@ public class Client {
                 }
             }).start();
 
-            //writing thread
+            //reading thread
             while (true) {
                 if (in.available() > 0) {
                     while (in.available() > 1) {
                         baos.write(in.read());
                     }
+                    System.out.println("tadam");
                     in.skip(1);
                     Message message = protocol.decode(baos.toByteArray());
                     baos.reset();

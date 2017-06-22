@@ -16,10 +16,7 @@ import java.nio.channels.SocketChannel;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 public class Server {
     private static final int PORT = 10013;
@@ -29,7 +26,8 @@ public class Server {
     private Protocol protocol = new BitProtocol();
     private Map<SocketChannel, ByteBuffer> readBuffers = new HashMap<>();
     private Map<SocketChannel, ByteBuffer> writeBuffers = new HashMap<>();
-    private Map<SocketChannel, ByteArrayOutputStream> byteArrays = new HashMap<>();
+    private Map<SocketChannel, ByteArrayOutputStream> readByteArrays = new HashMap<>();
+    private Map<SocketChannel, Queue<Byte>> writeQueues = new HashMap<>();
 
     //private UserStore userStore = new UserTable();
     //private MessageStore messageStore = new MessageTable();
@@ -110,7 +108,8 @@ public class Server {
             accept.configureBlocking(false);
             readBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
             writeBuffers.put(accept, ByteBuffer.allocate(BUFFER_SIZE));
-            byteArrays.put(accept, new ByteArrayOutputStream());
+            readByteArrays.put(accept, new ByteArrayOutputStream());
+            writeQueues.put(accept, new LinkedBlockingQueue<>());
             accept.register(key.selector(), SelectionKey.OP_READ, true);
         } catch (IOException e) {
             e.printStackTrace();
@@ -127,9 +126,10 @@ public class Server {
                 close(channel);
                 readBuffers.remove(channel);
                 writeBuffers.remove(channel);
-                byteArrays.remove(channel);
+                readByteArrays.remove(channel);
+                writeQueues.remove(channel);
             } else {
-                ByteArrayOutputStream baos = byteArrays.get(channel);
+                ByteArrayOutputStream baos = readByteArrays.get(channel);
                 readBuffer.flip();
                 boolean endOfMessage = false;
                 while (readBuffer.remaining() > 0) {
@@ -166,9 +166,10 @@ public class Server {
                         Message message = protocol.decode(baos.toByteArray());
                         baos.reset();
                         Message newMessage = processMessage(message);
-                        ByteBuffer writeBuffer = writeBuffers.get(channel);
-                        writeBuffer.clear();
-                        writeBuffer.put(protocol.encode(newMessage));
+                        byte[] bytes = protocol.encode(newMessage);
+                        Byte[] bigBytes = new Byte[bytes.length];
+                        Arrays.setAll(bigBytes, i -> bytes[i]);
+                        writeQueues.get(channel).addAll(Arrays.asList(bigBytes));
                         key.interestOps(SelectionKey.OP_WRITE);
                         System.out.println("sending " + newMessage);
                     } catch (ProtocolException e) {
@@ -185,12 +186,19 @@ public class Server {
 
     private void write(SelectionKey key) {
         SocketChannel channel = (SocketChannel) key.channel();
+        Queue<Byte> queue = writeQueues.get(channel);
         ByteBuffer buffer = writeBuffers.get(channel);
         try {
-            //перед тем как отправлять буфер, его надо перевести в режим чтения!!!
-            buffer.flip();
-            channel.write(buffer);
-            buffer.compact();
+            while (queue.size() > 0) {
+                buffer.clear();
+                while (queue.size() > 0 && buffer.capacity() - buffer.position() > 0) {
+                    buffer.put(queue.poll());
+                }
+                buffer.flip();
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+            }
             key.interestOps(SelectionKey.OP_READ);
         } catch (IOException e) {
             e.printStackTrace();
